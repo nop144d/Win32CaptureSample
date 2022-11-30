@@ -22,6 +22,74 @@ namespace util
     using namespace robmikh::common::uwp;
 }
 
+namespace nop144d::util
+{
+    auto FixWindowToolStyle = [](HWND hwnd, bool restore) noexcept
+    {
+        static bool wasToolWindow = false;
+        static bool isToolWindow = false;
+        static LONG_PTR exStyle;
+
+        if (!restore)
+        {
+            exStyle = GetWindowLongPtr(hwnd, GWL_EXSTYLE);
+            if (exStyle & WS_EX_TOOLWINDOW)
+            {
+                wasToolWindow = true;
+                exStyle &= ~WS_EX_TOOLWINDOW;
+                auto res = SetWindowLongPtr(hwnd, GWL_EXSTYLE, exStyle);
+                if (res)
+                {
+                    isToolWindow = false;
+                }
+            }
+        }
+        else
+        {
+            if (wasToolWindow && !isToolWindow)
+            {
+                exStyle |= WS_EX_TOOLWINDOW;
+                auto res = SetWindowLongPtr(hwnd, GWL_EXSTYLE, exStyle);
+            }
+        }
+    };
+
+    inline auto CreateCaptureItemForWindow(HWND hwnd)
+    {
+        auto interop_factory = winrt::get_activation_factory<winrt::Windows::Graphics::Capture::GraphicsCaptureItem, IGraphicsCaptureItemInterop>();
+        winrt::Windows::Graphics::Capture::GraphicsCaptureItem item = { nullptr };
+
+        try
+        {
+            winrt::check_hresult(interop_factory->CreateForWindow(hwnd, winrt::guid_of<ABI::Windows::Graphics::Capture::IGraphicsCaptureItem>(), winrt::put_abi(item)));
+        }
+        catch (const winrt::hresult_error& ex)
+        {
+            if (ex.code() != E_INVALIDARG)
+            {
+                throw ex;
+            }
+            else
+            {
+                try
+                {
+                    FixWindowToolStyle(hwnd, false);
+                    winrt::check_hresult(interop_factory->CreateForWindow(hwnd, winrt::guid_of<ABI::Windows::Graphics::Capture::IGraphicsCaptureItem>(), winrt::put_abi(item)));
+                }
+                catch (const winrt::hresult_error& ex)
+                {
+                    FixWindowToolStyle(hwnd, true);
+                    throw ex;
+                }
+            }
+        }
+
+        FixWindowToolStyle(hwnd, true);
+
+        return item;
+    }
+}
+
 App::App(winrt::ContainerVisual root, winrt::GraphicsCapturePicker capturePicker, winrt::FileSavePicker savePicker)
 {
     m_capturePicker = capturePicker;
@@ -60,7 +128,7 @@ winrt::GraphicsCaptureItem App::TryStartCaptureFromWindowHandle(HWND hwnd)
     winrt::GraphicsCaptureItem item{ nullptr };
     try
     {
-        item = util::CreateCaptureItemForWindow(hwnd);
+        item = nop144d::util::CreateCaptureItemForWindow(hwnd);
         StartCaptureFromItem(item);
     }
     catch (winrt::hresult_error const& error)
