@@ -32,23 +32,6 @@ bool IsCapturableWindow(WindowInfo const& window)
         return false;
     }
 
-    auto exStyle = GetWindowLongW(window.WindowHandle, GWL_EXSTYLE);
-    if (exStyle & WS_EX_TOOLWINDOW)    // No tooltips
-    {
-        return false;
-    }
-
-    // Check to see if the window is cloaked if it's a UWP
-    if (wcscmp(window.ClassName.c_str(), L"Windows.UI.Core.CoreWindow") == 0 ||
-        wcscmp(window.ClassName.c_str(), L"ApplicationFrameWindow") == 0)
-    {
-        DWORD cloaked = FALSE;
-        if (SUCCEEDED(DwmGetWindowAttribute(window.WindowHandle, DWMWA_CLOAKED, &cloaked, sizeof(cloaked))) && (cloaked == DWM_CLOAKED_SHELL))
-        {
-            return false;
-        }
-    }
-
     // Unfortunate work-around. Not sure how to avoid this.
     if (IsKnownBlockedWindow(window))
     {
